@@ -27,18 +27,17 @@
  *  BSD license, all text above must be included in any redistribution
  */
 
-#include "Arduino.h"
-#include <Adafruit_Si7021.h>
-#include <Wire.h>
+#include <cmath>
+#include "Adafruit_Si7021.h"
 
 /*!
  *  @brief  Instantiates a new Adafruit_Si7021 class
  *  @param  *theWire
  *          optional wire object
  */
-Adafruit_Si7021::Adafruit_Si7021(TwoWire *theWire) {
+Adafruit_Si7021::Adafruit_Si7021(Adafruit_Si7021_hal_interface *wire) {
   _i2caddr = SI7021_DEFAULT_ADDRESS;
-  _wire = theWire;
+  _wire = wire;
   sernum_a = sernum_b = 0;
   _model = SI_7021;
   _revision = 0;
@@ -79,10 +78,10 @@ float Adafruit_Si7021::readHumidity() {
   if (err != 0)
     return NAN; // error
 
-  delay(20); // account for conversion time for reading humidity
+  _wire->delay(20); // account for conversion time for reading humidity
 
-  uint32_t start = millis(); // start timeout
-  while (millis() - start < _TRANSACTION_TIMEOUT) {
+  uint32_t start = _wire->millis(); // start timeout
+  while (_wire->millis() - start < _TRANSACTION_TIMEOUT) {
     if (_wire->requestFrom(_i2caddr, 3) == 3) {
       uint16_t hum = _wire->read() << 8 | _wire->read();
       uint8_t chxsum = _wire->read();
@@ -94,7 +93,7 @@ float Adafruit_Si7021::readHumidity() {
 
       return humidity > 100.0 ? 100.0 : humidity;
     }
-    delay(6); // 1/2 typical sample processing time
+    _wire->delay(6); // 1/2 typical sample processing time
   }
   return NAN; // Error timeout
 }
@@ -112,10 +111,10 @@ float Adafruit_Si7021::readTemperature() {
   if (err != 0)
     return NAN; // error
 
-  delay(20); // account for conversion time for reading temperature
+  _wire->delay(20); // account for conversion time for reading temperature
 
-  uint32_t start = millis(); // start timeout
-  while (millis() - start < _TRANSACTION_TIMEOUT) {
+  uint32_t start = _wire->millis(); // start timeout
+  while (_wire->millis() - start < _TRANSACTION_TIMEOUT) {
     if (_wire->requestFrom(_i2caddr, 3) == 3) {
       uint16_t temp = _wire->read() << 8 | _wire->read();
       uint8_t chxsum = _wire->read();
@@ -126,7 +125,7 @@ float Adafruit_Si7021::readTemperature() {
       temperature -= 46.85;
       return temperature;
     }
-    delay(6); // 1/2 typical sample processing time
+    _wire->delay(6); // 1/2 typical sample processing time
   }
 
   return NAN; // Error timeout
@@ -139,7 +138,7 @@ void Adafruit_Si7021::reset() {
   _wire->beginTransmission(_i2caddr);
   _wire->write(SI7021_RESET_CMD);
   _wire->endTransmission();
-  delay(50);
+  _wire->delay(50);
 }
 
 void Adafruit_Si7021::_readRevision(void) {
@@ -148,8 +147,8 @@ void Adafruit_Si7021::_readRevision(void) {
   _wire->write((uint8_t)(SI7021_FIRMVERS_CMD & 0xFF));
   _wire->endTransmission();
 
-  uint32_t start = millis(); // start timeout
-  while (millis() - start < _TRANSACTION_TIMEOUT) {
+  uint32_t start = _wire->millis(); // start timeout
+  while (_wire->millis() - start < _TRANSACTION_TIMEOUT) {
     if (_wire->requestFrom(_i2caddr, 2) == 2) {
       uint8_t rev = _wire->read();
       _wire->read();
@@ -162,7 +161,7 @@ void Adafruit_Si7021::_readRevision(void) {
       _revision = rev;
       return;
     }
-    delay(2);
+    _wire->delay(2);
   }
   _revision = 0;
   return; // Error timeout
@@ -178,13 +177,13 @@ void Adafruit_Si7021::readSerialNumber() {
   _wire->endTransmission();
 
   bool gotData = false;
-  uint32_t start = millis(); // start timeout
-  while (millis() - start < _TRANSACTION_TIMEOUT) {
+  uint32_t start = _wire->millis(); // start timeout
+  while (_wire->millis() - start < _TRANSACTION_TIMEOUT) {
     if (_wire->requestFrom(_i2caddr, 8) == 8) {
       gotData = true;
       break;
     }
-    delay(2);
+    _wire->delay(2);
   }
   if (!gotData)
     return; // error timeout
@@ -207,13 +206,13 @@ void Adafruit_Si7021::readSerialNumber() {
   _wire->endTransmission();
 
   gotData = false;
-  start = millis(); // start timeout
-  while (millis() - start < _TRANSACTION_TIMEOUT) {
+  start = _wire->millis(); // start timeout
+  while (_wire->millis() - start < _TRANSACTION_TIMEOUT) {
     if (_wire->requestFrom(_i2caddr, 8) == 8) {
       gotData = true;
       break;
     }
-    delay(2);
+    _wire->delay(2);
   }
   if (!gotData)
     return; // error timeout
@@ -275,7 +274,7 @@ void Adafruit_Si7021::heater(bool h) {
  */
 bool Adafruit_Si7021::isHeaterEnabled() {
   uint8_t regValue = _readRegister8(SI7021_READRHT_REG_CMD);
-  return (bool)bitRead(regValue, SI7021_REG_HTRE_BIT);
+  return (bool)((regValue >> SI7021_REG_HTRE_BIT) == 1);
 }
 
 /*!
@@ -303,13 +302,13 @@ uint8_t Adafruit_Si7021::_readRegister8(uint8_t reg) {
   _wire->write((uint8_t)reg);
   _wire->endTransmission();
 
-  uint32_t start = millis(); // start timeout
-  while (millis() - start < _TRANSACTION_TIMEOUT) {
+  uint32_t start = _wire->millis(); // start timeout
+  while (_wire->millis() - start < _TRANSACTION_TIMEOUT) {
     if (_wire->requestFrom(_i2caddr, 1) == 1) {
       value = _wire->read();
       return value;
     }
-    delay(2);
+    _wire->delay(2);
   }
 
   return 0; // Error timeout
@@ -319,15 +318,15 @@ uint16_t Adafruit_Si7021::_readRegister16(uint8_t reg) {
   uint16_t value;
   _wire->beginTransmission(_i2caddr);
   _wire->write(reg);
-  _wire->endTransmission(false);
+  _wire->endTransmission();
 
-  uint32_t start = millis(); // start timeout
-  while (millis() - start < _TRANSACTION_TIMEOUT) {
+  uint32_t start = _wire->millis(); // start timeout
+  while (_wire->millis() - start < _TRANSACTION_TIMEOUT) {
     if (_wire->requestFrom(_i2caddr, 2) == 2) {
       value = _wire->read() << 8 | _wire->read();
       return value;
     }
-    delay(2);
+    _wire->delay(2);
   }
   return 0; // Error timeout
 }

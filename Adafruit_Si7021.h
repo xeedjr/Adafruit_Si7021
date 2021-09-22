@@ -22,8 +22,8 @@
 #ifndef __Si7021_H__
 #define __Si7021_H__
 
-#include "Arduino.h"
-#include <Wire.h>
+#include <stdint.h>
+#include "Adafruit_Si7021_hal_interface.h"
 
 /*!
  *  I2C ADDRESS/BITS
@@ -78,7 +78,7 @@ enum si_heatLevel {
  */
 class Adafruit_Si7021 {
 public:
-  Adafruit_Si7021(TwoWire *theWire = &Wire);
+  Adafruit_Si7021(Adafruit_Si7021_hal_interface *wire);
   bool begin();
 
   float readTemperature();
@@ -118,7 +118,7 @@ private:
   void _writeRegister8(uint8_t reg, uint8_t value);
 
   int8_t _i2caddr;
-  TwoWire *_wire;
+  Adafruit_Si7021_hal_interface *_wire;
   const static int _TRANSACTION_TIMEOUT = 100; // Wire NAK/Busy timeout in ms
 };
 
